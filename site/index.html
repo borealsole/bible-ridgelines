@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Bible Ridgelines</title>
+	<meta name="description" content="Ridgeline plots of original-language word frequency through any Bible passage." />
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23173f5f'/%3E%3Cpath d='M3 12 C8 12 9 4 13 4 S18 12 29 12' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M3 20 C10 20 14 10 18 10 S22 20 29 20' fill='none' stroke='%239ad1d4' stroke-width='2'/%3E%3Cpath d='M3 28 C6 28 7 21 10 21 S14 28 29 28' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link
+		rel="stylesheet"
+		href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Frank+Ruhl+Libre:wght@400;600&family=Gentium+Book+Plus:ital,wght@0,400;0,700;1,400&family=David+Libre:wght@400;500&family=Noto+Sans:ital,wght@0,400;0,600;1,400&family=Noto+Sans+Hebrew:wght@400;600&family=Noto+Serif:ital,wght@0,400;0,600;1,400&family=Noto+Serif+Hebrew:wght@400;600&family=Alegreya:ital,wght@0,400;0,600;1,400&display=swap"
+	/>
+	<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+	<header class="topbar">
+		<h1>Bible Ridgelines</h1>
+		<p class="tagline">Where each original-language word lives in a passage, one ridge per word.</p>
+	</header>
+
+	<main class="layout">
+		<aside class="controls" id="controls">
+			<form id="form" autocomplete="off" onsubmit="return false">
+				<section>
+					<label class="block" for="passage">Passage(s)</label>
+					<textarea id="passage" name="passage" rows="2" spellcheck="false" placeholder="e.g. Ruth; John 1:1-18; Rom 8"></textarea>
+					<div class="presets" id="presets"></div>
+					<p class="hint">Separate passages with <kbd>;</kbd>. Ranges like <code>Gen 1-11</code>, <code>John 1:1-18, 3:16</code>, <code>Matt-John</code>, or groups like <code>Torah</code>, <code>Gospels</code>, <code>NT</code>.</p>
+					<p class="status" id="status" role="status"></p>
+				</section>
+
+				<details open>
+					<summary>Words</summary>
+					<div class="field">
+						<label for="grouping">Group by family <output id="groupingOut"></output></label>
+						<input type="range" id="grouping" name="grouping" min="0" max="3" step="1" />
+						<div class="scale-labels"><span>none</span><span>root</span><span>root chain</span><span>family</span></div>
+					</div>
+					<label class="check"><input type="checkbox" name="prefixes" /> Include Hebrew prefixes (and, the, in, to…)</label>
+					<div class="grid2">
+						<div class="field">
+							<label for="minCount">Min. occurrences</label>
+							<input type="number" id="minCount" name="minCount" min="1" step="1" />
+						</div>
+						<div class="field">
+							<label for="maxCount">Max. occurrences</label>
+							<input type="number" id="maxCount" name="maxCount" min="0" step="1" placeholder="no limit" />
+						</div>
+						<div class="field">
+							<label for="minBible">Min. Bible-wide</label>
+							<input type="number" id="minBible" name="minBible" min="0" step="1" placeholder="no limit" />
+						</div>
+						<div class="field">
+							<label for="maxBible">Max. Bible-wide</label>
+							<input type="number" id="maxBible" name="maxBible" min="0" step="1" placeholder="no limit" />
+						</div>
+						<div class="field">
+							<label for="skipTop">Skip most frequent</label>
+							<input type="number" id="skipTop" name="skipTop" min="0" step="1" />
+						</div>
+						<div class="field">
+							<label for="maxRidges">Max. ridges</label>
+							<input type="number" id="maxRidges" name="maxRidges" min="1" max="500" step="1" />
+						</div>
+					</div>
+					<p class="hint">Occurrence limits count the words in the chosen passage; Bible-wide limits use the whole-Bible frequency (good for hiding particles). When there are more words than ridges, the most frequent are kept.</p>
+				</details>
+
+				<details open>
+					<summary>Shape</summary>
+					<div class="field">
+						<label for="order">Order ridges by</label>
+						<select id="order" name="order">
+							<option value="median">Where most occurrences fall (median)</option>
+							<option value="mean">Average position (mean)</option>
+							<option value="peak">Highest concentration (peak)</option>
+							<option value="first">First appearance</option>
+							<option value="count">Frequency in passage</option>
+						</select>
+					</div>
+					<label class="check"><input type="checkbox" name="reverse" /> Reverse order</label>
+					<div class="field">
+						<label for="normalise">Normalise</label>
+						<select id="normalise" name="normalise">
+							<option value="none">No — heights show raw frequency</option>
+							<option value="peak">Each ridge to its own peak</option>
+							<option value="area">Each ridge to equal area (distribution)</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="bandwidth">Smoothing <output id="bandwidthOut"></output></label>
+						<input type="range" id="bandwidth" name="bandwidth" min="0" max="10" step="0.1" />
+					</div>
+					<div class="field">
+						<label for="spacing">Ridge spacing <output id="spacingOut"></output></label>
+						<input type="range" id="spacing" name="spacing" min="6" max="60" step="1" />
+					</div>
+					<div class="field">
+						<label for="overlap">Ridge height / overlap <output id="overlapOut"></output></label>
+						<input type="range" id="overlap" name="overlap" min="0.5" max="8" step="0.1" />
+					</div>
+					<div class="field">
+						<label for="width">Plot width <output id="widthOut"></output></label>
+						<input type="range" id="width" name="width" min="0" max="3000" step="20" />
+					</div>
+				</details>
+
+				<details open>
+					<summary>Colour</summary>
+					<div class="field">
+						<label for="preset">Style preset</label>
+						<select id="preset">
+							<option value="">Choose a preset…</option>
+							<option value="classic">Classic (viridis)</option>
+							<option value="pulsar">Pulsar (black &amp; white)</option>
+							<option value="ink">Ink on paper</option>
+							<option value="sunset">Sunset</option>
+							<option value="night">Night</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="colourBy">Colour ridges by</label>
+						<select id="colourBy" name="colourBy">
+							<option value="order">Ridge order</option>
+							<option value="position">Position in passage</option>
+							<option value="count">Frequency in passage</option>
+							<option value="frequency">Bible-wide frequency</option>
+							<option value="language">Language (Hebrew / Aramaic / Greek)</option>
+							<option value="single">One colour</option>
+						</select>
+					</div>
+					<div class="field" data-show="colourBy!=single,language">
+						<label for="palette">Palette</label>
+						<select id="palette" name="palette"></select>
+					</div>
+					<div class="grid2">
+						<div class="field" data-show="colourBy=single">
+							<label for="colour">Fill colour</label>
+							<input type="color" id="colour" name="colour" />
+						</div>
+						<div class="field">
+							<label for="fillMode">Fill</label>
+							<select id="fillMode" name="fillMode">
+								<option value="colour">Ridge colour</option>
+								<option value="background">Background (opaque)</option>
+								<option value="none">None</option>
+							</select>
+						</div>
+						<div class="field">
+							<label for="lineMode">Outline</label>
+							<select id="lineMode" name="lineMode">
+								<option value="custom">Line colour</option>
+								<option value="fill">Ridge colour</option>
+							</select>
+						</div>
+						<div class="field" data-show="lineMode=custom">
+							<label for="lineColour">Line colour</label>
+							<input type="color" id="lineColour" name="lineColour" />
+						</div>
+						<div class="field">
+							<label for="background">Background</label>
+							<input type="color" id="background" name="background" />
+						</div>
+						<div class="field">
+							<label for="textColour">Text colour</label>
+							<input type="color" id="textColour" name="textColour" />
+						</div>
+					</div>
+					<div class="field">
+						<label for="opacity">Fill opacity <output id="opacityOut"></output></label>
+						<input type="range" id="opacity" name="opacity" min="0" max="1" step="0.05" />
+					</div>
+					<div class="field">
+						<label for="lineWidth">Line width <output id="lineWidthOut"></output></label>
+						<input type="range" id="lineWidth" name="lineWidth" min="0" max="4" step="0.25" />
+					</div>
+					<label class="check"><input type="checkbox" name="baseline" /> Draw baselines</label>
+				</details>
+
+				<details open>
+					<summary>Labels</summary>
+					<div class="field">
+						<label for="labelMode">Show words as</label>
+						<select id="labelMode" name="labelMode">
+							<option value="original">Original language (Hebrew / Greek)</option>
+							<option value="gloss">English gloss</option>
+							<option value="both">Original + English gloss</option>
+							<option value="translit">Transliteration</option>
+							<option value="strongs">Strong’s number</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="font">Font</label>
+						<select id="font" name="font"></select>
+					</div>
+					<div class="field">
+						<label for="fontSize">Font size <output id="fontSizeOut"></output></label>
+						<input type="range" id="fontSize" name="fontSize" min="8" max="36" step="1" />
+					</div>
+					<div class="field">
+						<label for="title">Title</label>
+						<input type="text" id="title" name="title" placeholder="(defaults to the passage)" />
+					</div>
+					<label class="check"><input type="checkbox" name="showTitle" /> Show title</label>
+					<label class="check"><input type="checkbox" name="showLabels" /> Show word labels</label>
+					<label class="check"><input type="checkbox" name="showStrongs" /> Add Strong’s numbers</label>
+					<label class="check"><input type="checkbox" name="labelColour" /> Colour labels to match ridges</label>
+					<label class="check"><input type="checkbox" name="labelBoth" /> Labels on both sides</label>
+					<label class="check"><input type="checkbox" name="showAxis" /> Show chapter / verse axis</label>
+					<label class="check"><input type="checkbox" name="showSeparators" /> Separate passages with lines</label>
+				</details>
+
+				<section class="actions">
+					<button type="button" id="reset" class="secondary">Reset settings</button>
+					<button type="button" id="copyLink" class="secondary">Copy link</button>
+				</section>
+			</form>
+		</aside>
+
+		<section class="stage">
+			<div class="toolbar">
+				<div class="summary" id="summary"></div>
+				<div class="export">
+					<label for="exportScale" class="sr-only">Image scale</label>
+					<select id="exportScale" title="Image resolution">
+						<option value="1">1×</option>
+						<option value="2" selected>2×</option>
+						<option value="3">3×</option>
+						<option value="4">4×</option>
+					</select>
+					<button type="button" id="exportPng">Export PNG</button>
+					<button type="button" id="exportSvg" class="secondary">SVG</button>
+					<button type="button" id="exportCsv" class="secondary">CSV</button>
+				</div>
+			</div>
+			<div class="plot-wrap" id="plotWrap">
+				<canvas id="plot" aria-label="Ridgeline plot" role="img"></canvas>
+				<div class="crosshair" id="crosshair" hidden></div>
+				<div class="tooltip" id="tooltip" hidden></div>
+				<div class="loading" id="loading">Loading the Hebrew and Greek text…</div>
+			</div>
+			<p class="footnote">
+				Text: pointed Westminster Leningrad Codex and Tischendorf’s 8th edition Greek New Testament, keyed to Strong’s numbers, from
+				<a href="https://github.com/borealsole/sync.bible">sync.bible</a>. Glosses and word families are derived from Strong’s dictionary and are approximate.
+				Ridge height is occurrences per 1,000 words in the passage, smoothed.
+			</p>
+		</section>
+	</main>
+	<script type="module" src="js/app.js"></script>
+</body>
+</html>
