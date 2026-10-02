@@ -1,0 +1,78 @@
+name: Build and deploy to GitHub Pages
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+  workflow_dispatch:
+  # Rebuild weekly so the data follows changes in sync.bible.
+  schedule:
+    - cron: '17 4 * * 1'
+  # Lets sync.bible (or anyone with a token) trigger a rebuild.
+  repository_dispatch:
+    types: [sync-bible-updated]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout sync.bible data
+        uses: actions/checkout@v4
+        with:
+          repository: borealsole/sync.bible
+          ref: main
+          path: sync.bible
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            public/bibles/accented.json
+            public/data/strongsDictionary.json
+            public/data/strongsObjectWithFamilies.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build dataset
+        run: python3 scripts/build_data.py --source sync.bible --out site/data
+
+      - name: Check scripts and passage parser
+        run: |
+          for f in site/js/*.js; do node --check "$f"; done
+          node scripts/test-passages.mjs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
