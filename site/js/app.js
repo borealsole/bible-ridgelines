@@ -1,5 +1,6 @@
 import { loadData, collectTokens, analyse, verseAt } from './model.js';
 import { createParser } from './passage.js';
+import { parseWordList } from './select.js';
 import { PALETTES, CanvasBackend, SvgBackend, layout, draw } from './render.js';
 
 const FONTS = {
@@ -30,6 +31,9 @@ const PASSAGE_PRESETS = [
 
 const DEFAULTS = {
 	passage: 'Ruth',
+	words: '',
+	wordMode: 'only',
+	combineTerms: false,
 	grouping: 0,
 	prefixes: false,
 	minCount: 3,
@@ -184,7 +188,7 @@ form.addEventListener( 'input', ( e ) => {
 	const el = e.target;
 	if ( ! el.name || ! ( el.name in state ) ) return;
 	state[ el.name ] = readInput( el );
-	onStateChange( el.name === 'passage' ? 250 : 0 );
+	onStateChange( el.name === 'passage' || el.name === 'words' ? 300 : 0 );
 } );
 
 $( 'preset' ).addEventListener( 'change', ( e ) => {
@@ -248,6 +252,43 @@ function renderOptions( labels ) {
 	};
 }
 
+// Word list -> selection, with a short report of what each entry matched.
+let wordCache = { text: null, parsed: null, error: null };
+function wordSelection( tokens ) {
+	const status = $( 'wordStatus' );
+	if ( wordCache.text !== state.words ) {
+		wordCache = { text: state.words, parsed: null, error: null };
+		try {
+			wordCache.parsed = parseWordList( data, state.words );
+		} catch ( err ) {
+			wordCache.error = err.message;
+		}
+	}
+	if ( wordCache.error ) {
+		status.textContent = wordCache.error;
+		status.classList.add( 'error' );
+		return null;
+	}
+	const parsed = wordCache.parsed;
+	status.classList.remove( 'error' );
+	if ( ! parsed.terms.length ) {
+		status.textContent = '';
+		return null;
+	}
+	if ( ! tokens.idSet ) tokens.idSet = new Set( tokens.ids );
+	const parts = parsed.terms.map( ( t ) => {
+		if ( ! t.ids.size ) return `<span class="miss">${ escapeHtml( t.text ) }: no match</span>`;
+		const present = [ ...t.ids ].filter( ( id ) => tokens.idSet.has( id ) );
+		const ordered = [ ...present, ...[ ...t.ids ].filter( ( id ) => ! tokens.idSet.has( id ) ) ];
+		const keys = ordered.slice( 0, 4 ).map( ( id ) => data.lexicon[ id ].k ).join( ', ' );
+		const more = t.ids.size > 4 ? '…' : '';
+		const where = present.length ? `${ present.length } in passage` : '<span class="miss">none in passage</span>';
+		return `<strong>${ escapeHtml( t.text ) }</strong>: ${ t.ids.size } word${ t.ids.size === 1 ? '' : 's' } (${ keys }${ more }), ${ where }`;
+	} );
+	status.innerHTML = parts.join( '<br>' );
+	return { ...parsed, mode: state.wordMode, combine: state.combineTerms };
+}
+
 let lastAnalysisKey = '';
 function update() {
 	if ( ! data ) return;
@@ -280,8 +321,12 @@ function update() {
 		reverse: state.reverse,
 		normalise: state.normalise,
 		bins: 800,
+		words: state.words,
+		wordMode: state.wordMode,
+		combineTerms: state.combineTerms,
 	};
 	const analysisKey = tokKey + JSON.stringify( opts );
+	opts.selection = wordSelection( tokens );
 	let result = current?.result;
 	if ( analysisKey !== lastAnalysisKey || ! result ) {
 		result = analyse( data, tokens, opts );
@@ -293,7 +338,12 @@ function update() {
 	if ( tokens.words === undefined ) tokens.words = tokens.ids.reduce( ( n, id ) => n + ( data.lexicon[ id ].p ? 0 : 1 ), 0 );
 	const words = tokens.words.toLocaleString();
 	setStatus( `${ labels.length > 3 ? labels.length + ' passages' : labels.join( '; ' ) } · ${ words } words` );
-	$( 'summary' ).innerHTML = result.ridges.length
+	const listed = opts.selection?.mode === 'only';
+	$( 'summary' ).innerHTML = listed
+		? `<strong>${ result.ridges.length }</strong> ridge${ result.ridges.length === 1 ? '' : 's' } from your word list${
+				result.afterFilter > result.ridges.length ? ` (${ result.afterFilter } found; raise “Max. ridges” to see all)` : ''
+		  }`
+		: result.ridges.length
 		? `<strong>${ result.ridges.length }</strong> of ${ result.afterFilter.toLocaleString() } matching words shown (${ result.groupsFound.toLocaleString() } distinct in passage)`
 		: `No words match the current filters (${ result.groupsFound.toLocaleString() } distinct in passage).`;
 

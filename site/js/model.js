@@ -123,18 +123,19 @@ function smooth( hist, sigma ) {
 /**
  * Build the ridges for a token stream.
  * opts: { grouping, prefixes, minCount, maxCount, minBible, maxBible, skipTop,
- *         maxRidges, bandwidth (fraction of passage), order, reverse, normalise, bins }
+ *         maxRidges, bandwidth (fraction of passage), order, reverse, normalise, bins,
+ *         selection: { mode: 'only' | 'exclude', combine, ids:Set, termsOf:Map, terms } }
+ * With mode 'only' the frequency filters are skipped: the listed words are the filter.
  */
 export function analyse( data, tokens, opts ) {
 	const { lexicon } = data;
 	const resolve = groupMapper( data, opts.grouping );
 	const groups = new Map(); // head index -> { positions, members: Map }
 	const { ids, total } = tokens;
-	for ( let p = 0; p < total; p++ ) {
-		const id = ids[ p ];
-		const e = lexicon[ id ];
-		if ( e.p && ! opts.prefixes ) continue;
-		const head = e.p ? id : resolve( id );
+	const sel = opts.selection && opts.selection.terms.length ? opts.selection : null;
+	const only = sel?.mode === 'only';
+	const combine = only && sel.combine;
+	const add = ( head, id, p ) => {
 		let g = groups.get( head );
 		if ( ! g ) {
 			g = { head, positions: [], members: new Map() };
@@ -142,11 +143,32 @@ export function analyse( data, tokens, opts ) {
 		}
 		g.positions.push( p );
 		g.members.set( id, ( g.members.get( id ) || 0 ) + 1 );
+	};
+	for ( let p = 0; p < total; p++ ) {
+		const id = ids[ p ];
+		const e = lexicon[ id ];
+		if ( sel ) {
+			if ( only !== sel.ids.has( id ) ) continue;
+		}
+		// Prefixes listed explicitly in the word list are always kept.
+		if ( e.p && ! opts.prefixes && ! only ) continue;
+		if ( combine ) {
+			// One ridge per word-list entry; heads are negative to keep them apart from lexicon ids.
+			for ( const ti of sel.termsOf.get( id ) ) add( -1 - ti, id, p );
+		} else {
+			add( e.p ? id : resolve( id ), id, p );
+		}
 	}
 
 	// Bible-wide counts per group (sum over all members that map to the head).
 	const bibleCount = new Map();
-	if ( opts.grouping === 0 ) {
+	if ( combine ) {
+		for ( const g of groups.values() ) {
+			let n = 0;
+			for ( const id of sel.terms[ -1 - g.head ].ids ) n += lexicon[ id ].n || 0;
+			bibleCount.set( g.head, n );
+		}
+	} else if ( opts.grouping === 0 ) {
 		for ( const g of groups.values() ) bibleCount.set( g.head, lexicon[ g.head ].n );
 	} else {
 		for ( const g of groups.values() ) bibleCount.set( g.head, 0 );
@@ -167,10 +189,18 @@ export function analyse( data, tokens, opts ) {
 				bestN = n;
 			}
 		}
+		// Position of the group in the word list, for "as listed" ordering.
+		let listIndex = Infinity;
+		if ( combine ) listIndex = -1 - g.head;
+		else if ( sel && only ) {
+			for ( const id of g.members.keys() ) listIndex = Math.min( listIndex, sel.termsOf.get( id )?.[ 0 ] ?? Infinity );
+		}
 		return {
 			...g,
 			label: lexicon[ best ],
-			headEntry: lexicon[ g.head ],
+			headEntry: g.head >= 0 ? lexicon[ g.head ] : lexicon[ best ],
+			term: combine ? sel.terms[ -1 - g.head ].text : null,
+			listIndex,
 			count: g.positions.length,
 			bible: bibleCount.get( g.head ) || 0,
 		};
@@ -178,8 +208,8 @@ export function analyse( data, tokens, opts ) {
 
 	const matchedBeforeFilter = list.length;
 	list.sort( ( a, b ) => b.count - a.count );
-	if ( opts.skipTop > 0 ) list = list.slice( opts.skipTop );
-	list = list.filter(
+	if ( opts.skipTop > 0 && ! only ) list = list.slice( opts.skipTop );
+	if ( ! only ) list = list.filter(
 		( g ) =>
 			g.count >= ( opts.minCount || 1 ) &&
 			( ! opts.maxCount || g.count <= opts.maxCount ) &&
@@ -235,6 +265,7 @@ export function analyse( data, tokens, opts ) {
 		peak: ( g ) => g.peak,
 		first: ( g ) => g.first,
 		count: ( g ) => -g.count,
+		list: ( g ) => g.listIndex,
 	}[ opts.order || 'median' ];
 	list.sort( ( a, b ) => key( a ) - key( b ) || b.count - a.count );
 	if ( opts.reverse ) list.reverse();

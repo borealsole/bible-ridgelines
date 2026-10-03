@@ -202,6 +202,30 @@ kbd {
 	font-size: 12.5px;
 	min-height: 1em;
 }
+.status .miss {
+	color: var(--danger);
+}
+details.help {
+	border: 0;
+	padding: 0 0 6px;
+	font-size: 12.5px;
+	color: var(--muted);
+}
+details.help > summary {
+	font-weight: 500;
+	padding: 2px 0 4px;
+	color: var(--focus);
+}
+details.help ul {
+	margin: 4px 0;
+	padding-left: 18px;
+}
+details.help li {
+	margin: 2px 0;
+}
+details.help p {
+	margin: 4px 0;
+}
 .status.error {
 	color: var(--danger);
 	font-weight: 600;
