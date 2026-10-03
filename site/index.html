@@ -34,6 +34,34 @@
 				<details open>
 					<summary>Words</summary>
 					<div class="field">
+						<label for="words">Words to plot</label>
+						<textarea id="words" name="words" rows="3" spellcheck="false" placeholder="e.g. G26, love, fam:H2617, ἀλήθεια, amen"></textarea>
+					</div>
+					<div class="field">
+						<label for="wordMode">Use this list to</label>
+						<select id="wordMode" name="wordMode">
+							<option value="only">Plot only these words</option>
+							<option value="exclude">Hide these words</option>
+						</select>
+					</div>
+					<label class="check" data-show="wordMode=only"><input type="checkbox" name="combineTerms" /> One ridge per entry (merge everything it matches)</label>
+					<p class="status" id="wordStatus" role="status"></p>
+					<details class="help">
+						<summary>How to write the list</summary>
+						<p>Separate entries with commas or new lines. Each entry can be:</p>
+						<ul>
+							<li><code>H430</code>, <code>G26</code>: a Strong’s number</li>
+							<li><code>ἀγάπη</code>, <code>אלהים</code>: the original word (accents and vowel points optional)</li>
+							<li><code>agape</code>: a transliteration</li>
+							<li><code>love</code>, <code>steadfast love</code>: an English gloss</li>
+							<li><code>lov*</code>, <code>*love</code>: <code>*</code> stands for any letters</li>
+							<li><code>fam:G25</code>: the whole Strong’s family of a word; <code>root:G26</code>: words sharing its root chain</li>
+							<li><code>G25 + G26</code>: with “one ridge per entry”, <code>+</code> joins terms into one ridge</li>
+							<li><code>gloss:</code>, <code>lemma:</code>, <code>translit:</code> and <code>strongs:</code> say how to read a term</li>
+						</ul>
+						<p>When plotting only listed words, the occurrence and Bible-wide filters below are ignored. Choose “Order of the word list” under Shape to keep the ridges in the order you typed them.</p>
+					</details>
+					<div class="field">
 						<label for="grouping">Group by family <output id="groupingOut"></output></label>
 						<input type="range" id="grouping" name="grouping" min="0" max="3" step="1" />
 						<div class="scale-labels"><span>none</span><span>root</span><span>root chain</span><span>family</span></div>
@@ -78,6 +106,7 @@
 							<option value="peak">Highest concentration (peak)</option>
 							<option value="first">First appearance</option>
 							<option value="count">Frequency in passage</option>
+							<option value="list">Order of the word list</option>
 						</select>
 					</div>
 					<label class="check"><input type="checkbox" name="reverse" /> Reverse order</label>

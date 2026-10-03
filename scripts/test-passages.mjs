@@ -1,8 +1,11 @@
 // Smoke tests for the passage parser against the built dataset.
 // Usage: node scripts/test-passages.mjs [site/data/text.json]
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { createParser } from '../site/js/passage.js';
+import { parseWordList } from '../site/js/select.js';
 
 const file = process.argv[ 2 ] || new URL( '../site/data/text.json', import.meta.url );
 const { books } = JSON.parse( fs.readFileSync( file, 'utf8' ) );
@@ -33,4 +36,22 @@ assert.equal( p.parse( 'OT' ).length, 39 );
 let tokens = 0;
 for ( const b of books ) for ( const c of b.chapters ) for ( const v of c ) tokens += v ? v.split( ' ' ).length : 0;
 assert.ok( tokens > 500000, `expected >500k tokens, got ${ tokens }` );
-console.log( `ok — ${ Object.keys( cases ).length } passages parsed, ${ tokens } tokens` );
+// Word-list matching
+const lexiconFile = path.join( path.dirname( file instanceof URL ? fileURLToPath( file ) : file ), 'lexicon.json' );
+const lexicon = JSON.parse( fs.readFileSync( lexiconFile, 'utf8' ) );
+const byKey = new Map( lexicon.map( ( e, i ) => [ e.k, i ] ) );
+const data = { books, lexicon, byKey };
+const keys = ( q ) => parseWordList( data, q ).terms.map( ( t ) => [ ...t.ids ].map( ( i ) => lexicon[ i ].k ).sort() );
+assert.deepEqual( keys( 'G26' ), [ [ 'G26' ] ] );
+assert.deepEqual( keys( 'h0430' ), [ [ 'H430' ] ] );
+assert.ok( keys( 'ἀγάπη' )[ 0 ].includes( 'G26' ), 'lemma with accents' );
+assert.ok( keys( 'αγαπη' )[ 0 ].includes( 'G26' ), 'lemma without accents' );
+assert.ok( keys( 'אלהים' )[ 0 ].includes( 'H430' ), 'unpointed Hebrew' );
+assert.ok( keys( 'elohim' )[ 0 ].includes( 'H430' ), 'loose transliteration' );
+assert.ok( keys( 'love' )[ 0 ].includes( 'G25' ) && keys( 'love' )[ 0 ].includes( 'H157' ), 'gloss' );
+assert.ok( keys( 'root:G26' )[ 0 ].includes( 'G27' ), 'root chain' );
+assert.equal( keys( 'G25 + G26, faith' ).length, 2, 'entries and + joins' );
+assert.deepEqual( keys( 'zzzz' ), [ [] ] );
+assert.throws( () => parseWordList( data, 'foo:bar' ) );
+
+console.log( `ok — ${ Object.keys( cases ).length } passages parsed, ${ tokens } tokens, word lists matched` );
