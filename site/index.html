@@ -4,7 +4,7 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Bible Ridgelines</title>
-	<meta name="description" content="Ridgeline plots of original-language word frequency through any Bible passage." />
+	<meta name="description" content="Ridgeline plots of original-language word frequency through any Bible passage, for spotting structural and linguistic patterns in the inspired word of God." />
 	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23173f5f'/%3E%3Cpath d='M3 12 C8 12 9 4 13 4 S18 12 29 12' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Cpath d='M3 20 C10 20 14 10 18 10 S22 20 29 20' fill='none' stroke='%239ad1d4' stroke-width='2'/%3E%3Cpath d='M3 28 C6 28 7 21 10 21 S14 28 29 28' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E" />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,7 +17,7 @@
 <body>
 	<header class="topbar">
 		<h1>Bible Ridgelines</h1>
-		<p class="tagline">Where each original-language word lives in a passage, one ridge per word.</p>
+		<p class="tagline">Where each original-language word lives in a passage, one ridge per word: a way to spot structural and linguistic patterns in the inspired word of God.</p>
 	</header>
 
 	<main class="layout">
@@ -35,7 +35,7 @@
 					<summary>Words</summary>
 					<div class="field">
 						<label for="words">Words to plot</label>
-						<textarea id="words" name="words" rows="3" spellcheck="false" placeholder="e.g. G26, love, fam:H2617, ἀλήθεια, amen"></textarea>
+						<textarea id="words" name="words" rows="3" spellcheck="false" placeholder="e.g. G26, love, fam:H2617, ἀλήθεια, &quot;λόγος θεός&quot;"></textarea>
 					</div>
 					<div class="field">
 						<label for="wordMode">Use this list to</label>
@@ -56,6 +56,7 @@
 							<li><code>love</code>, <code>steadfast love</code>: an English gloss</li>
 							<li><code>lov*</code>, <code>*love</code>: <code>*</code> stands for any letters</li>
 							<li><code>fam:G25</code>: the whole Strong’s family of a word; <code>root:G26</code>: words sharing its root chain</li>
+							<li><code>"λόγος θεός"</code>, <code>"בראשית ברא"</code>, <code>"H3068 H6635"</code>: a phrase in quotes, i.e. those words in that order. Hebrew prefixes and the Greek article may come between them, and <code>*</code> stands for any one word. Phrases match dictionary forms, and a gloss of several words is joined with <code>_</code> (<code>steadfast_love</code>)</li>
 							<li><code>G25 + G26</code>: with “one ridge per entry”, <code>+</code> joins terms into one ridge</li>
 							<li><code>gloss:</code>, <code>lemma:</code>, <code>translit:</code> and <code>strongs:</code> say how to read a term</li>
 						</ul>

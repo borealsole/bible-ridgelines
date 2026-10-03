@@ -147,7 +147,7 @@ export class SvgBackend {
 export function ridgeLabels( g, mode, showStrongs ) {
 	const e = g.label;
 	// LRM keeps the "+n" suffix after right-to-left Hebrew text.
-	const extra = g.members.size > 1 ? `\u200E +${ g.members.size - 1 }` : '';
+	const extra = g.members.size > 1 && ! g.isPhrase ? `\u200E +${ g.members.size - 1 }` : '';
 	let primary;
 	let secondary = '';
 	switch ( mode ) {

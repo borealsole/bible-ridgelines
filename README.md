@@ -1,6 +1,6 @@
 # bible-ridgelines
 
-Web app for creating Bible ridgeline plots: one ridge per original-language word (Hebrew, Aramaic or Greek), showing where that word is concentrated through any passage or set of passages.
+Web app for creating Bible ridgeline plots: one ridge per original-language word (Hebrew, Aramaic or Greek), showing where that word is concentrated through any passage or set of passages. It is a way to spot structural and linguistic patterns in the inspired word of God.
 
 **Live site:** https://borealsole.github.io/bible-ridgelines/
 
@@ -9,6 +9,7 @@ Web app for creating Bible ridgeline plots: one ridge per original-language word
 - **Any passage, any length**: `Ruth`, `Gen 1-11`, `John 1:1-18, 3:16`, `Ps 23; John 10:1-18; Ezek 34`, `Matt-John`, and groups such as `Torah`, `Gospels`, `Pauline`, `OT`, `NT`, `Bible`. Separate passages with `;`. They are placed side by side on the x-axis.
 - **Word filters**: minimum and maximum occurrences in the passage, minimum and maximum Bible-wide frequency (useful for hiding particles), skipping the N most frequent words, and a maximum number of ridges.
 - **Choose the words**: list the words to plot, or to hide, by Strong's number (`G26`), original word (`ἀγάπη`, `אלהים`, with or without accents), transliteration (`agape`, `elohim`), English gloss (`love`), wildcard (`*love`), whole family (`fam:G25`) or shared root (`root:G26`). You can merge each entry into one ridge (`G4102 + G4100`) and keep the ridges in the order you typed.
+- **Phrases**: put words in quotes to plot a phrase, e.g. `"H3068 H6635"` (LORD of hosts), `"holy israel"` (Holy One of Israel), `"ἐγώ εἰμί"` or `"בראשית ברא"`. A phrase matches those words in that order. Hebrew prefixes and the Greek article may come between them, and `*` stands for any one word. Phrases match dictionary forms (Strong's lemmas), not inflected spellings.
 - **Family grouping**, in four steps: none (each Strong's number on its own), direct root, root chain, or the whole Strong's family. Hebrew prefixes (and, the, in, to…) can be included as words.
 - **Ordering** by where most occurrences fall (median, the default), mean position, peak concentration, first appearance, frequency, or the order of your word list.
 - **Normalisation**: raw frequency on a shared scale, each ridge scaled to its own peak, or equal area.
