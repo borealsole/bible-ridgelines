@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { createParser } from '../site/js/passage.js';
 import { parseWordList } from '../site/js/select.js';
+import { analyse, collectTokens } from '../site/js/model.js';
 
 const file = process.argv[ 2 ] || new URL( '../site/data/text.json', import.meta.url );
 const { books } = JSON.parse( fs.readFileSync( file, 'utf8' ) );
@@ -54,4 +55,18 @@ assert.equal( keys( 'G25 + G26, faith' ).length, 2, 'entries and + joins' );
 assert.deepEqual( keys( 'zzzz' ), [ [] ] );
 assert.throws( () => parseWordList( data, 'foo:bar' ) );
 
-console.log( `ok — ${ Object.keys( cases ).length } passages parsed, ${ tokens } tokens, word lists matched` );
+// Phrases
+lexicon.forEach( ( e ) => ( e.lang = e.k[ 0 ] === 'G' ? 'greek' : 'hebrew' ) );
+const phraseCount = ( passage, words ) => {
+	const tokens = collectTokens( data, p.parse( passage ) );
+	const selection = { ...parseWordList( data, words ), mode: 'only', combine: false };
+	const r = analyse( data, tokens, { grouping: 0, bandwidth: 0.02, normalise: 'peak', order: 'list', maxRidges: 50, bins: 200, selection } );
+	return [ ...r.phraseCounts.values() ];
+};
+assert.deepEqual( phraseCount( 'Genesis 1', '"בראשית ברא", "H7200 H430"' ), [ 1, 7 ], 'Hebrew phrases (prefix skipped)' );
+assert.deepEqual( phraseCount( 'Isaiah', '"holy israel"' ), [ 25 ], 'Holy One of Israel in Isaiah' );
+assert.deepEqual( phraseCount( 'John 1', '"ἐν ἀρχή"' ), [ 2 ], 'Greek phrase with article between' );
+assert.equal( parseWordList( data, '"a, b" , c' ).terms.length, 2, 'commas inside quotes stay in the phrase' );
+assert.equal( parseWordList( data, '"λόγος"' ).terms[ 0 ].phrases.length, 0, 'one quoted word is just a word' );
+
+console.log( `ok — ${ Object.keys( cases ).length } passages parsed, ${ tokens } tokens, word lists and phrases matched` );

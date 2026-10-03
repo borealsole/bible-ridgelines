@@ -10,6 +10,9 @@
 //   fam:G25                every word in the Strong's family of G25 (or of a lemma/gloss)
 //   root:G26               every word whose root chain leads to the same root
 //   strongs:, lemma:, gloss:, translit:   force how a term is read
+//   "λόγος θεός", "in the beginning"   a phrase: the terms in sequence (Hebrew prefixes and
+//                          the Greek article may sit between them; * stands for any one word;
+//                          write a multi-word gloss inside a phrase with _ , e.g. steadfast_love)
 
 import { groupMapper } from './model.js';
 
@@ -90,6 +93,10 @@ function matchBase( data, kind, value ) {
 	const fl = loose( f );
 	const reLoose = wild ? toRegExp( fl ) : null;
 	const testTranslit = ( x ) => test( x.translit ) || ( wild ? reLoose.test( x.translitLoose ) : x.translitLoose === fl );
+	if ( kind === 'lemma' && HEBREW.test( raw ) && ! wild ) {
+		matchLemma( entries, f, ids );
+		return ids;
+	}
 	entries.forEach( ( x, i ) => {
 		const hit =
 			kind === 'lemma'
@@ -102,6 +109,19 @@ function matchBase( data, kind, value ) {
 		if ( hit ) ids.add( i );
 	} );
 	return ids;
+}
+
+// Hebrew typed as it appears in the text may carry prefixes (בראשית = ב + ראשית).
+// Try the word as typed, then without up to two leading prefix letters.
+function matchLemma( entries, f, ids ) {
+	const tries = [ f ];
+	const m = f.match( /^[בוהכלמש]{1,2}/ );
+	if ( m ) for ( let n = 1; n <= m[ 0 ].length; n++ ) tries.push( f.slice( n ) );
+	for ( const t of tries ) {
+		if ( t.length < 2 ) continue;
+		entries.forEach( ( x, i ) => x.lemma === t && ids.add( i ) );
+		if ( ids.size ) return;
+	}
 }
 
 const KIND_ALIASES = {
@@ -142,20 +162,48 @@ function matchTerm( data, term ) {
 	return out;
 }
 
+const QUOTED = /^\s*["“”„«»'‘’](.*)["“”„«»'‘’]\s*$/;
+
+// A phrase: a list of word sets in order (null = any one word).
+function parsePhrase( data, text ) {
+	const words = text.trim().split( /\s+/ ).filter( Boolean );
+	if ( words.length < 2 ) throw new Error( `“${ text }”: a phrase needs at least two words` );
+	return words.map( ( w ) => {
+		if ( w === '*' || w === '…' || w === '...' ) return { text: w, ids: null };
+		return { text: w, ids: matchTerm( data, w.replace( /_/g, ' ' ) ) };
+	} );
+}
+
 /**
- * Parse a word list. Returns { terms: [{ text, ids:Set }], ids:Set, termsOf: Map(id -> [termIndex]) }
+ * Parse a word list. Returns { terms, ids, termsOf, phrases }
+ *   terms:   [{ text, ids:Set, phrases:[{ text, parts }] }]  one per entry
+ *   ids:     every lexicon id named as a single word
+ *   termsOf: Map(id -> [entry index]) for single words
+ *   phrases: [{ text, parts, term }] every phrase, with its entry index
  * Throws on an unreadable term.
  */
 export function parseWordList( data, text ) {
 	const terms = [];
-	for ( const chunk of String( text || '' ).split( /[,;\n]+/ ) ) {
+	const phrases = [];
+	// Commas and semicolons separate entries, except inside quotes.
+	const chunks = String( text || '' ).match( /(?:["“”„«»][^"“”„«»]*["“”„«»]|[^,;\n])+/g ) || [];
+	for ( const chunk of chunks ) {
 		const entry = chunk.trim();
 		if ( ! entry ) continue;
 		const ids = new Set();
+		const own = [];
 		for ( const part of entry.split( '+' ) ) {
-			if ( part.trim() ) for ( const id of matchTerm( data, part ) ) ids.add( id );
+			if ( ! part.trim() ) continue;
+			const q = part.match( QUOTED );
+			if ( q && /\S\s+\S/.test( q[ 1 ] ) ) {
+				const phrase = { text: q[ 1 ].trim(), parts: parsePhrase( data, q[ 1 ] ), term: terms.length };
+				own.push( phrase );
+				phrases.push( phrase );
+			} else {
+				for ( const id of matchTerm( data, q ? q[ 1 ] : part ) ) ids.add( id );
+			}
 		}
-		terms.push( { text: entry, ids } );
+		terms.push( { text: entry, ids, phrases: own } );
 	}
 	const all = new Set();
 	const termsOf = new Map();
@@ -166,5 +214,5 @@ export function parseWordList( data, text ) {
 			termsOf.get( id ).push( ti );
 		}
 	} );
-	return { terms, ids: all, termsOf };
+	return { terms, ids: all, termsOf, phrases };
 }

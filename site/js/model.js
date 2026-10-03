@@ -120,11 +120,76 @@ function smooth( hist, sigma ) {
 	return out;
 }
 
+const isSkippable = ( e ) => e.p || e.k === 'G3588';
+
+/**
+ * Find every occurrence of a phrase (a list of { ids:Set | null } slots, null = any word).
+ * Hebrew prefixes and the Greek article may sit before or between the words unless
+ * the phrase itself names them. Matches never cross from one passage into the next.
+ * Returns { starts, covered, slots }: start positions, every token position used,
+ * and per slot a Map(lexicon id -> count) of what filled it.
+ */
+export function findPhrase( data, tokens, parts ) {
+	const { lexicon } = data;
+	const { ids, total, segStarts } = tokens;
+	const skippable = ( id ) => isSkippable( lexicon[ id ] );
+	const fits = ( part, id ) => ( part.ids === null ? ! skippable( id ) : part.ids.has( id ) );
+	const starts = [];
+	const covered = [];
+	const slots = parts.map( () => new Map() );
+	let seg = 0;
+	for ( let p = 0; p < total; p++ ) {
+		while ( seg + 1 < segStarts.length && segStarts[ seg + 1 ] <= p ) seg++;
+		const end = seg + 1 < segStarts.length ? segStarts[ seg + 1 ] : total;
+		if ( ! fits( parts[ 0 ], ids[ p ] ) ) continue;
+		const used = [ p ];
+		let q = p + 1;
+		let ok = true;
+		for ( let j = 1; j < parts.length && ok; j++ ) {
+			while ( q < end && skippable( ids[ q ] ) && ! parts[ j ].ids?.has( ids[ q ] ) ) q++;
+			if ( q < end && fits( parts[ j ], ids[ q ] ) ) used.push( q++ );
+			else ok = false;
+		}
+		if ( ! ok ) continue;
+		starts.push( p );
+		covered.push( ...used );
+		used.forEach( ( u, j ) => slots[ j ].set( ids[ u ], ( slots[ j ].get( ids[ u ] ) || 0 ) + 1 ) );
+	}
+	return { starts, covered, slots };
+}
+
+// A lexicon-like entry that labels a phrase ridge with the words that filled each slot.
+function phraseEntry( data, phrase, slots ) {
+	const picks = slots.map( ( m ) => {
+		let best = null;
+		let bestN = -1;
+		for ( const [ id, n ] of m ) {
+			if ( n > bestN ) {
+				best = id;
+				bestN = n;
+			}
+		}
+		return best === null ? null : data.lexicon[ best ];
+	} );
+	if ( picks.some( ( e ) => ! e ) ) {
+		return { k: phrase.text, l: phrase.text, t: phrase.text, g: phrase.text, lang: 'greek', phrase: true };
+	}
+	const join = ( f ) => picks.map( f ).join( ' ' );
+	return {
+		k: join( ( e ) => e.k ),
+		l: join( ( e ) => e.l ),
+		t: join( ( e ) => e.t || e.l ),
+		g: join( ( e ) => e.g.split( /[,;]/ )[ 0 ].trim() ),
+		lang: picks[ 0 ].lang,
+		phrase: true,
+	};
+}
+
 /**
  * Build the ridges for a token stream.
  * opts: { grouping, prefixes, minCount, maxCount, minBible, maxBible, skipTop,
  *         maxRidges, bandwidth (fraction of passage), order, reverse, normalise, bins,
- *         selection: { mode: 'only' | 'exclude', combine, ids:Set, termsOf:Map, terms } }
+ *         selection: { mode: 'only' | 'exclude', combine, ids:Set, termsOf:Map, terms, phrases } }
  * With mode 'only' the frequency filters are skipped: the listed words are the filter.
  */
 export function analyse( data, tokens, opts ) {
@@ -144,9 +209,15 @@ export function analyse( data, tokens, opts ) {
 		g.positions.push( p );
 		g.members.set( id, ( g.members.get( id ) || 0 ) + 1 );
 	};
+	// Phrases: find them first; in "hide" mode their tokens are skipped below.
+	const phraseHits = ( sel?.phrases || [] ).map( ( ph ) => ( { phrase: ph, ...findPhrase( data, tokens, ph.parts ) } ) );
+	const hiddenPositions = new Set();
+	if ( sel && ! only ) for ( const h of phraseHits ) for ( const q of h.covered ) hiddenPositions.add( q );
+
 	for ( let p = 0; p < total; p++ ) {
 		const id = ids[ p ];
 		const e = lexicon[ id ];
+		if ( hiddenPositions.has( p ) ) continue;
 		if ( sel ) {
 			if ( only !== sel.ids.has( id ) ) continue;
 		}
@@ -158,6 +229,16 @@ export function analyse( data, tokens, opts ) {
 		} else {
 			add( e.p ? id : resolve( id ), id, p );
 		}
+	}
+
+	// Phrase occurrences join their entry's ridge when entries are combined.
+	if ( combine ) {
+		for ( const h of phraseHits ) {
+			for ( let i = 0; i < h.starts.length; i++ ) {
+				add( -1 - h.phrase.term, ids[ h.starts[ i ] ], h.starts[ i ] );
+			}
+		}
+		for ( const g of groups.values() ) g.positions.sort( ( a, b ) => a - b );
 	}
 
 	// Bible-wide counts per group (sum over all members that map to the head).
@@ -195,16 +276,48 @@ export function analyse( data, tokens, opts ) {
 		else if ( sel && only ) {
 			for ( const id of g.members.keys() ) listIndex = Math.min( listIndex, sel.termsOf.get( id )?.[ 0 ] ?? Infinity );
 		}
+		// A combined entry that is just a phrase is labelled with the phrase.
+		const entry = combine ? sel.terms[ -1 - g.head ] : null;
+		const phraseOnly = entry && ! entry.ids.size && entry.phrases.length;
+		let phraseLabel = null;
+		if ( phraseOnly ) {
+			const parts = entry.phrases.map( ( ph ) => phraseEntry( data, ph, phraseHits.find( ( h ) => h.phrase === ph ).slots ) );
+			const join = ( f ) => parts.map( ( x ) => x[ f ] ).join( ' / ' );
+			phraseLabel = { k: join( 'k' ), l: join( 'l' ), t: join( 't' ), g: join( 'g' ), lang: parts[ 0 ].lang, phrase: true };
+		}
 		return {
 			...g,
-			label: lexicon[ best ],
-			headEntry: g.head >= 0 ? lexicon[ g.head ] : lexicon[ best ],
-			term: combine ? sel.terms[ -1 - g.head ].text : null,
+			label: phraseLabel || lexicon[ best ],
+			headEntry: phraseLabel || ( g.head >= 0 ? lexicon[ g.head ] : lexicon[ best ] ),
+			isPhrase: !! phraseOnly,
+			term: entry ? entry.text : null,
 			listIndex,
 			count: g.positions.length,
 			bible: bibleCount.get( g.head ) || 0,
 		};
 	} );
+
+	// Each phrase is its own ridge unless entries are combined.
+	if ( only && ! combine ) {
+		for ( const h of phraseHits ) {
+			if ( ! h.starts.length ) continue;
+			const members = new Map();
+			for ( const m of h.slots ) for ( const [ id, n ] of m ) members.set( id, ( members.get( id ) || 0 ) + n );
+			const label = phraseEntry( data, h.phrase, h.slots );
+			list.push( {
+				head: null,
+				positions: h.starts,
+				members,
+				label,
+				headEntry: label,
+				isPhrase: true,
+				term: h.phrase.text,
+				listIndex: h.phrase.term,
+				count: h.starts.length,
+				bible: 0,
+			} );
+		}
+	}
 
 	const matchedBeforeFilter = list.length;
 	list.sort( ( a, b ) => b.count - a.count );
@@ -270,7 +383,14 @@ export function analyse( data, tokens, opts ) {
 	list.sort( ( a, b ) => key( a ) - key( b ) || b.count - a.count );
 	if ( opts.reverse ) list.reverse();
 
-	return { ridges: list, bins, total, groupsFound: matchedBeforeFilter, afterFilter };
+	return {
+		ridges: list,
+		bins,
+		total,
+		groupsFound: matchedBeforeFilter,
+		afterFilter,
+		phraseCounts: new Map( phraseHits.map( ( h ) => [ h.phrase, h.starts.length ] ) ),
+	};
 }
 
 // Find the verse containing a token position.

@@ -275,18 +275,37 @@ function wordSelection( tokens ) {
 		status.textContent = '';
 		return null;
 	}
-	if ( ! tokens.idSet ) tokens.idSet = new Set( tokens.ids );
-	const parts = parsed.terms.map( ( t ) => {
-		if ( ! t.ids.size ) return `<span class="miss">${ escapeHtml( t.text ) }: no match</span>`;
-		const present = [ ...t.ids ].filter( ( id ) => tokens.idSet.has( id ) );
-		const ordered = [ ...present, ...[ ...t.ids ].filter( ( id ) => ! tokens.idSet.has( id ) ) ];
-		const keys = ordered.slice( 0, 4 ).map( ( id ) => data.lexicon[ id ].k ).join( ', ' );
-		const more = t.ids.size > 4 ? '…' : '';
-		const where = present.length ? `${ present.length } in passage` : '<span class="miss">none in passage</span>';
-		return `<strong>${ escapeHtml( t.text ) }</strong>: ${ t.ids.size } word${ t.ids.size === 1 ? '' : 's' } (${ keys }${ more }), ${ where }`;
-	} );
-	status.innerHTML = parts.join( '<br>' );
 	return { ...parsed, mode: state.wordMode, combine: state.combineTerms };
+}
+
+// What each entry matched: words found, and how often each phrase occurs in the passage.
+function renderWordStatus( selection, tokens, result ) {
+	if ( ! selection ) return;
+	if ( ! tokens.idSet ) tokens.idSet = new Set( tokens.ids );
+	const miss = ( s ) => `<span class="miss">${ s }</span>`;
+	const lines = selection.terms.map( ( t ) => {
+		const bits = [];
+		if ( t.ids.size ) {
+			const present = [ ...t.ids ].filter( ( id ) => tokens.idSet.has( id ) );
+			const ordered = [ ...present, ...[ ...t.ids ].filter( ( id ) => ! tokens.idSet.has( id ) ) ];
+			const keys = ordered.slice( 0, 4 ).map( ( id ) => data.lexicon[ id ].k ).join( ', ' );
+			const more = t.ids.size > 4 ? '…' : '';
+			const where = present.length ? `${ present.length } in passage` : miss( 'none in passage' );
+			bits.push( `${ t.ids.size } word${ t.ids.size === 1 ? '' : 's' } (${ keys }${ more }), ${ where }` );
+		}
+		for ( const ph of t.phrases ) {
+			const unknown = ph.parts.filter( ( part ) => part.ids && ! part.ids.size ).map( ( part ) => escapeHtml( part.text ) );
+			if ( unknown.length ) {
+				bits.push( miss( `phrase: no match for ${ unknown.join( ', ' ) }` ) );
+				continue;
+			}
+			const n = result.phraseCounts.get( ph ) || 0;
+			bits.push( `phrase, ${ n ? `${ n } time${ n === 1 ? '' : 's' } in passage` : miss( 'not in passage' ) }` );
+		}
+		if ( ! bits.length ) return miss( `${ escapeHtml( t.text ) }: no match` );
+		return `<strong>${ escapeHtml( t.text ) }</strong>: ${ bits.join( '; ' ) }`;
+	} );
+	$( 'wordStatus' ).innerHTML = lines.join( '<br>' );
 }
 
 let lastAnalysisKey = '';
@@ -333,6 +352,7 @@ function update() {
 		lastAnalysisKey = analysisKey;
 	}
 	current = { segments, labels, tokens, result };
+	renderWordStatus( opts.selection, tokens, result );
 	updateOutputs();
 
 	if ( tokens.words === undefined ) tokens.words = tokens.ids.reduce( ( n, id ) => n + ( data.lexicon[ id ].p ? 0 : 1 ), 0 );
@@ -425,8 +445,9 @@ canvas.addEventListener( 'mousemove', ( e ) => {
 	const here = verseAt( current.tokens, Math.max( 0, pos ) );
 	const centre = verseAt( current.tokens, Math.floor( g.median * total ) );
 	const members = [ ...g.members.entries() ].sort( ( a, b ) => b[ 1 ] - a[ 1 ] );
-	const memberHtml =
-		members.length > 1
+	const memberHtml = g.isPhrase
+		? `<dt>Phrase</dt><dd>${ escapeHtml( g.term ) }</dd>`
+		: members.length > 1
 			? `<dt>Grouped</dt><dd>${ members
 					.slice( 0, 8 )
 					.map( ( [ id, n ] ) => `${ escapeHtml( data.lexicon[ id ].l ) } ${ escapeHtml( data.lexicon[ id ].g ) } (${ n })` )
@@ -438,7 +459,7 @@ canvas.addEventListener( 'mousemove', ( e ) => {
 		${ e0.d ? `<div class="def">${ escapeHtml( e0.d ) }${ e0.d.length >= 100 ? '…' : '' }</div>` : '' }
 		<dl>
 			<dt>In passage</dt><dd>${ g.count.toLocaleString() } (${ ( ( g.count / total ) * 1000 ).toFixed( 1 ) } per 1,000 words)</dd>
-			<dt>Whole Bible</dt><dd>${ g.bible.toLocaleString() }</dd>
+			${ g.isPhrase ? '' : `<dt>Whole Bible</dt><dd>${ g.bible.toLocaleString() }</dd>` }
 			<dt>Centre</dt><dd>${ ref( centre ) }</dd>
 			<dt>Here</dt><dd>${ ref( here ) } · ${ g.curve[ hit.k ].toFixed( 1 ) } per 1,000</dd>
 			${ memberHtml }
