@@ -31,7 +31,7 @@ jobs:
       - name: Checkout sync.bible data
         uses: actions/checkout@v4
         with:
-          repository: borealsole/sync.bible
+          repository: syncbible/sync.bible
           ref: main
           path: sync.bible
           sparse-checkout-cone-mode: false
