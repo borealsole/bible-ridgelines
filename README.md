@@ -20,7 +20,7 @@ Web app for creating Bible ridgeline plots: one ridge per original-language word
 
 ## Data
 
-`scripts/build_data.py` builds `site/data/` from the [sync.bible](https://github.com/borealsole/sync.bible) repository:
+`scripts/build_data.py` builds `site/data/` from the [sync.bible](https://github.com/syncbible/sync.bible) repository:
 
 | Input | Used for |
 |---|---|
@@ -33,7 +33,7 @@ Glosses come from the start of each Strong's definition. For about 750 common wo
 The data is generated rather than committed. To run the app locally:
 
 ```sh
-git clone https://github.com/borealsole/sync.bible ../sync.bible   # or use --download
+git clone https://github.com/syncbible/sync.bible ../sync.bible   # or use --download
 python3 scripts/build_data.py --source ../sync.bible --out site/data
 node scripts/test-passages.mjs
 python3 -m http.server -d site 8000   # open http://localhost:8000
