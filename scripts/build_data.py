@@ -23,7 +23,7 @@ import sys
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RAW_BASE = "https://raw.githubusercontent.com/borealsole/sync.bible/main/"
+RAW_BASE = "https://raw.githubusercontent.com/syncbible/sync.bible/main/"
 FILES = {
     "text": "public/bibles/accented.json",
     "dict": "public/data/strongsDictionary.json",
